@@ -73,6 +73,19 @@ jobs:
           grep -q "/api/ai/chat" full-app/server.ts
           ! grep -R "Entrar com Google\|Google Web Client ID\|Gemini conectado" -n full-app/src
 
+      - name: Apply chat black-screen stability fix
+        run: |
+          cat chat_black_fix/part*.b64 > chat_black_fix.b64
+          base64 -d chat_black_fix.b64 > chat_black_fix.zip
+          echo "2f55ad55c18860eb835148dfcc09e7bf562a516b435156de3bbfafdbcd2cd942  chat_black_fix.zip" | sha256sum -c -
+          unzip -t chat_black_fix.zip
+          unzip -oq chat_black_fix.zip -d full-app
+          test -f full-app/src/components/AppErrorBoundary.tsx
+          grep -q "AppErrorBoundary" full-app/src/main.tsx
+          grep -q "fetchWithTimeout" full-app/src/services/groq.ts
+          grep -q "chatScrollRef" full-app/src/components/SupportHub.tsx
+          grep -q "Tempo limite da Groq excedido" full-app/server.ts
+
       - name: Fix Android safe area
         run: |
           python - <<'PY'
@@ -136,14 +149,14 @@ jobs:
         run: |
           test -f full-app/android/app/build/outputs/apk/debug/app-debug.apk
           sha256sum full-app/android/app/build/outputs/apk/debug/app-debug.apk | tee apk-sha256.txt
-          cp full-app/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-GROQ.apk
+          cp full-app/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-GROQ-CORRIGIDO.apk
 
       - name: Upload APK and server project
         uses: actions/upload-artifact@v4
         with:
-          name: Jejum-e-Apoio-GROQ
+          name: Jejum-e-Apoio-GROQ-CORRIGIDO
           path: |
-            Jejum-e-Apoio-GROQ.apk
+            Jejum-e-Apoio-GROQ-CORRIGIDO.apk
             Jejum-e-Apoio-PROJETO-GROQ.zip
             full-app/android-signing-report.txt
             apk-sha256.txt
