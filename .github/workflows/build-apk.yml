@@ -64,11 +64,19 @@ jobs:
           grep -q "Dieta" full-app/src/components/Sidebar.tsx
           grep -q "Remédios" full-app/src/components/Sidebar.tsx
 
+      - name: Apply secure Groq backend
+        run: |
+          python patches/apply_groq_secure.py full-app
+          test -f full-app/src/services/groq.ts
+          test ! -f full-app/src/services/gemini.ts
+          grep -q "GROQ_API_KEY" full-app/server.ts
+          grep -q "/api/ai/chat" full-app/server.ts
+          ! grep -R "Entrar com Google\|Google Web Client ID\|Gemini conectado" -n full-app/src
+
       - name: Fix Android safe area
         run: |
           python - <<'PY'
           from pathlib import Path
-
           sidebar = Path('full-app/src/components/Sidebar.tsx')
           s = sidebar.read_text(encoding='utf-8')
           old = 'className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between"'
@@ -78,13 +86,19 @@ jobs:
           elif 'safe-area-inset-top' not in s:
               raise SystemExit('Cabeçalho móvel esperado não encontrado')
           sidebar.write_text(s, encoding='utf-8')
-
           html = Path('full-app/index.html')
           h = html.read_text(encoding='utf-8')
           if 'viewport-fit=cover' not in h:
               h = h.replace('user-scalable=no', 'user-scalable=no, viewport-fit=cover')
           html.write_text(h, encoding='utf-8')
           PY
+
+      - name: Package Groq project for Windows server
+        run: |
+          cd full-app
+          zip -qr ../Jejum-e-Apoio-PROJETO-GROQ.zip . -x 'node_modules/*' 'android/*' 'dist/*' '.data/*' '.env'
+          cd ..
+          test -f Jejum-e-Apoio-PROJETO-GROQ.zip
 
       - name: Install dependencies
         working-directory: full-app
@@ -118,18 +132,19 @@ jobs:
           ./gradlew signingReport > ../android-signing-report.txt
           grep -E "Variant:|SHA1:|SHA-256:" ../android-signing-report.txt || true
 
-      - name: Verify full APK
+      - name: Verify Groq APK
         run: |
           test -f full-app/android/app/build/outputs/apk/debug/app-debug.apk
           sha256sum full-app/android/app/build/outputs/apk/debug/app-debug.apk | tee apk-sha256.txt
-          cp full-app/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-COMPLETO.apk
+          cp full-app/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-GROQ.apk
 
-      - name: Upload full APK
+      - name: Upload APK and server project
         uses: actions/upload-artifact@v4
         with:
-          name: Jejum-e-Apoio-COMPLETO
+          name: Jejum-e-Apoio-GROQ
           path: |
-            Jejum-e-Apoio-COMPLETO.apk
+            Jejum-e-Apoio-GROQ.apk
+            Jejum-e-Apoio-PROJETO-GROQ.zip
             full-app/android-signing-report.txt
             apk-sha256.txt
           if-no-files-found: error
