@@ -80,7 +80,9 @@ jobs:
           echo "2f55ad55c18860eb835148dfcc09e7bf562a516b435156de3bbfafdbcd2cd942  chat_black_fix.zip" | sha256sum -c -
           unzip -t chat_black_fix.zip
           unzip -oq chat_black_fix.zip -d full-app
+          sed -i 's/React.Component<React.PropsWithChildren, State>/React.Component<{ children?: React.ReactNode }, State>/' full-app/src/components/AppErrorBoundary.tsx
           test -f full-app/src/components/AppErrorBoundary.tsx
+          grep -q "children?: React.ReactNode" full-app/src/components/AppErrorBoundary.tsx
           grep -q "AppErrorBoundary" full-app/src/main.tsx
           grep -q "fetchWithTimeout" full-app/src/services/groq.ts
           grep -q "chatScrollRef" full-app/src/components/SupportHub.tsx
