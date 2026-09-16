@@ -2,6 +2,8 @@ name: Build APK - Jejum e Apoio
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build-android:
@@ -32,16 +34,39 @@ jobs:
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
 
-      - name: Restore full source
+      - name: Restore and verify full source
         run: |
-          cat full_source_parts/part*.b64 > full_source.b64
+          cat full_source_parts_safe/part*.b64 > full_source.b64
           base64 -d full_source.b64 > full_source.zip
-          echo "29d205f34e259ae7fc054dd6c133af96b048385fcc256f8bfc60df1295fc6173  full_source.zip" | sha256sum -c -
+          echo "1ca1c5fdd524a9fba669cb50f90d7b59f03df26d0fa0d51f6872a54b7d73dac1  full_source.zip" | sha256sum -c -
+          unzip -t full_source.zip
           unzip -q full_source.zip -d full-app
           test -f full-app/src/components/RecipeManager.tsx
           test -f full-app/src/components/PhysicalActivityTracker.tsx
           test -f full-app/src/components/PantryAndDiet.tsx
+          test -f full-app/src/components/MedicationTracker.tsx
+          test -f full-app/src/components/WaterTracker.tsx
+          test -f full-app/src/components/FastingTracker.tsx
+          test -f full-app/src/components/BmiAndWeight.tsx
+          test -f full-app/src/components/DailyProgress.tsx
           test -f full-app/src/components/SupportHub.tsx
+          grep -q "Receitas" full-app/src/components/Sidebar.tsx
+          grep -q "Atividades" full-app/src/components/Sidebar.tsx
+          grep -q "Dieta" full-app/src/components/Sidebar.tsx
+          grep -q "Remédios" full-app/src/components/Sidebar.tsx
+
+      - name: Fix Android safe area
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('full-app/src/components/Sidebar.tsx')
+          s = p.read_text(encoding='utf-8')
+          old = 'className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between"'
+          new = 'className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 pb-3 flex items-center justify-between" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}'
+          if old not in s:
+              raise SystemExit('Cabeçalho móvel esperado não encontrado')
+          p.write_text(s.replace(old, new), encoding='utf-8')
+          PY
 
       - name: Install dependencies
         working-directory: full-app
