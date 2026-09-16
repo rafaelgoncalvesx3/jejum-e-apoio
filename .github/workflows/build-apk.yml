@@ -30,7 +30,6 @@ jobs:
       - name: Prepare Android SDK
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          echo "SDK manager: $SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
@@ -54,16 +53,17 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Signing report
+      - name: Build debug APK
         working-directory: apk-demo/android
         run: |
           chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Signing report after build
+        working-directory: apk-demo/android
+        run: |
           ./gradlew signingReport > ../android-signing-report.txt
           grep -E "Variant:|SHA1:|SHA-256:" ../android-signing-report.txt || true
-
-      - name: Build debug APK
-        working-directory: apk-demo/android
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Verify APK
         run: |
