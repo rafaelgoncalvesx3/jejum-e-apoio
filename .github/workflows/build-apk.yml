@@ -8,16 +8,20 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract source
+      - name: Reconstruct and verify source
         run: |
+          cat source_parts/part00.b64 source_parts/part01.b64 source_parts/part02.b64 source_parts/part03.b64 > source.b64
+          base64 -d source.b64 > source.zip
+          echo "29d205f34e259ae7fc054dd6c133af96b048385fcc256f8bfc60df1295fc6173  source.zip" | sha256sum -c -
+          unzip -tq source.zip
           mkdir -p appsrc
-          base64 -d Jejum_e_Apoio_SOURCE.zip > source.zip
           unzip -q source.zip -d appsrc
+          test -f appsrc/package.json
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -37,6 +41,10 @@ jobs:
         working-directory: appsrc
         run: npm install --no-audit --no-fund
 
+      - name: TypeScript check
+        working-directory: appsrc
+        run: npm run lint
+
       - name: Build web
         working-directory: appsrc
         run: npm run build:web
@@ -44,6 +52,7 @@ jobs:
       - name: Add Android platform
         working-directory: appsrc
         run: |
+          rm -rf android
           npx cap add android
           npx cap sync android
           node scripts/patch-android.mjs
@@ -57,7 +66,7 @@ jobs:
 
       - name: Build debug APK
         working-directory: appsrc/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Create APK checksum
         run: sha256sum appsrc/android/app/build/outputs/apk/debug/app-debug.apk > apk-sha256.txt
