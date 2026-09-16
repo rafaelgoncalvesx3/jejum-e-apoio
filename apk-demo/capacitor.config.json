@@ -1,0 +1,6 @@
+{
+  "appId": "br.com.rafaelgoncalves.jejumapoio",
+  "appName": "Jejum & Apoio",
+  "webDir": "www",
+  "android": { "allowMixedContent": true }
+}

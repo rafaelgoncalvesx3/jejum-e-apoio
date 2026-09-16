@@ -13,16 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Reconstruct and verify source
-        run: |
-          cat source_parts/part00.b64 source_parts/part01.b64 source_parts/part02.b64 source_parts/part03.b64 > source.b64
-          base64 -d source.b64 > source.zip
-          echo "29d205f34e259ae7fc054dd6c133af96b048385fcc256f8bfc60df1295fc6173  source.zip" | sha256sum -c -
-          unzip -tq source.zip
-          mkdir -p appsrc
-          unzip -q source.zip -d appsrc
-          test -f appsrc/package.json
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -37,46 +27,52 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android platform
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install dependencies
-        working-directory: appsrc
+        working-directory: apk-demo
         run: npm install --no-audit --no-fund
 
-      - name: TypeScript check
-        working-directory: appsrc
-        run: npm run lint
+      - name: Validate web assets
+        working-directory: apk-demo
+        run: |
+          node --check www/storage.js
+          node --check www/support.js
+          node --check www/app.js
+          test -f www/index.html
 
-      - name: Build web
-        working-directory: appsrc
-        run: npm run build:web
-
-      - name: Add Android platform
-        working-directory: appsrc
+      - name: Create Android project
+        working-directory: apk-demo
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
-          node scripts/patch-android.mjs
 
-      - name: Capture debug signing SHA-1
-        working-directory: appsrc/android
+      - name: Signing report
+        working-directory: apk-demo/android
         run: |
           chmod +x gradlew
           ./gradlew signingReport > ../android-signing-report.txt
-          cat ../android-signing-report.txt
+          grep -E "Variant:|SHA1:|SHA-256:" ../android-signing-report.txt || true
 
       - name: Build debug APK
-        working-directory: appsrc/android
-        run: ./gradlew assembleDebug --stacktrace
+        working-directory: apk-demo/android
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Create APK checksum
-        run: sha256sum appsrc/android/app/build/outputs/apk/debug/app-debug.apk > apk-sha256.txt
+      - name: Verify APK
+        run: |
+          test -f apk-demo/android/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum apk-demo/android/app/build/outputs/apk/debug/app-debug.apk | tee apk-sha256.txt
+          cp apk-demo/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-TESTE.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Jejum-e-Apoio-TESTE
           path: |
-            appsrc/android/app/build/outputs/apk/debug/app-debug.apk
-            appsrc/android-signing-report.txt
+            Jejum-e-Apoio-TESTE.apk
+            apk-demo/android-signing-report.txt
             apk-sha256.txt
           if-no-files-found: error
+          retention-days: 14
