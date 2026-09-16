@@ -36,7 +36,16 @@ jobs:
 
       - name: Restore and verify full source
         run: |
-          cat full_source_parts_safe/part*.b64 > full_source.b64
+          rm -f full_source.b64
+          for i in $(seq -w 0 25); do
+            case "$i" in
+              09) cat full_source_fixes/part09a.b64 full_source_fixes/part09b.b64 ;;
+              14) cat full_source_fixes/part14a.b64 full_source_fixes/part14b.b64 ;;
+              15) cat full_source_fixes/part15a.b64 full_source_fixes/part15b.b64 ;;
+              *)  cat "full_source_parts_safe/part${i}.b64" ;;
+            esac
+          done > full_source.b64
+          test "$(wc -c < full_source.b64)" -eq 178192
           base64 -d full_source.b64 > full_source.zip
           echo "1ca1c5fdd524a9fba669cb50f90d7b59f03df26d0fa0d51f6872a54b7d73dac1  full_source.zip" | sha256sum -c -
           unzip -t full_source.zip
@@ -59,13 +68,22 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('full-app/src/components/Sidebar.tsx')
-          s = p.read_text(encoding='utf-8')
+
+          sidebar = Path('full-app/src/components/Sidebar.tsx')
+          s = sidebar.read_text(encoding='utf-8')
           old = 'className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between"'
-          new = 'className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 pb-3 flex items-center justify-between" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}'
-          if old not in s:
+          new = 'className="md:hidden sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-4 pb-3 flex items-center justify-between" style={{ paddingTop: "max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 2.5rem)" }}'
+          if old in s:
+              s = s.replace(old, new)
+          elif 'safe-area-inset-top' not in s:
               raise SystemExit('Cabeçalho móvel esperado não encontrado')
-          p.write_text(s.replace(old, new), encoding='utf-8')
+          sidebar.write_text(s, encoding='utf-8')
+
+          html = Path('full-app/index.html')
+          h = html.read_text(encoding='utf-8')
+          if 'viewport-fit=cover' not in h:
+              h = h.replace('user-scalable=no', 'user-scalable=no, viewport-fit=cover')
+          html.write_text(h, encoding='utf-8')
           PY
 
       - name: Install dependencies
