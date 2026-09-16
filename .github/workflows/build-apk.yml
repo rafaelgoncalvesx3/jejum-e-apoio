@@ -2,13 +2,11 @@ name: Build APK - Jejum e Apoio
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -34,50 +32,62 @@ jobs:
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
 
+      - name: Restore full source
+        run: |
+          cat full_source_parts/part*.b64 > full_source.b64
+          base64 -d full_source.b64 > full_source.zip
+          echo "29d205f34e259ae7fc054dd6c133af96b048385fcc256f8bfc60df1295fc6173  full_source.zip" | sha256sum -c -
+          unzip -q full_source.zip -d full-app
+          test -f full-app/src/components/RecipeManager.tsx
+          test -f full-app/src/components/PhysicalActivityTracker.tsx
+          test -f full-app/src/components/PantryAndDiet.tsx
+          test -f full-app/src/components/SupportHub.tsx
+
       - name: Install dependencies
-        working-directory: apk-demo
+        working-directory: full-app
         run: npm install --no-audit --no-fund
 
-      - name: Validate web assets
-        working-directory: apk-demo
-        run: |
-          node --check www/storage.js
-          node --check www/support.js
-          node --check www/app.js
-          test -f www/index.html
+      - name: Typecheck
+        working-directory: full-app
+        run: npm run lint
+
+      - name: Build full web app
+        working-directory: full-app
+        run: npm run build:web
 
       - name: Create Android project
-        working-directory: apk-demo
+        working-directory: full-app
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
+          node scripts/patch-android.mjs
 
       - name: Build debug APK
-        working-directory: apk-demo/android
+        working-directory: full-app/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Signing report after build
-        working-directory: apk-demo/android
+      - name: Signing report
+        working-directory: full-app/android
         run: |
           ./gradlew signingReport > ../android-signing-report.txt
           grep -E "Variant:|SHA1:|SHA-256:" ../android-signing-report.txt || true
 
-      - name: Verify APK
+      - name: Verify full APK
         run: |
-          test -f apk-demo/android/app/build/outputs/apk/debug/app-debug.apk
-          sha256sum apk-demo/android/app/build/outputs/apk/debug/app-debug.apk | tee apk-sha256.txt
-          cp apk-demo/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-TESTE.apk
+          test -f full-app/android/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum full-app/android/app/build/outputs/apk/debug/app-debug.apk | tee apk-sha256.txt
+          cp full-app/android/app/build/outputs/apk/debug/app-debug.apk Jejum-e-Apoio-COMPLETO.apk
 
-      - name: Upload APK
+      - name: Upload full APK
         uses: actions/upload-artifact@v4
         with:
-          name: Jejum-e-Apoio-TESTE
+          name: Jejum-e-Apoio-COMPLETO
           path: |
-            Jejum-e-Apoio-TESTE.apk
-            apk-demo/android-signing-report.txt
+            Jejum-e-Apoio-COMPLETO.apk
+            full-app/android-signing-report.txt
             apk-sha256.txt
           if-no-files-found: error
           retention-days: 14
