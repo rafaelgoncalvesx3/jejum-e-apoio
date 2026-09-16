@@ -16,7 +16,8 @@ jobs:
       - name: Extract source
         run: |
           mkdir -p appsrc
-          unzip -q Jejum_e_Apoio_SOURCE.zip -d appsrc
+          base64 -d Jejum_e_Apoio_SOURCE.zip > source.zip
+          unzip -q source.zip -d appsrc
 
       - name: Setup Node
         uses: actions/setup-node@v4
